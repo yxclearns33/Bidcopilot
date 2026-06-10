@@ -1,8 +1,8 @@
 import { useApp } from '../context/AppContext'
 
 export default function Sidebar({ current, onNavigate }) {
-  const { opportunities, pipeline } = useApp()
-  const criticalCount = opportunities.reduce((acc, o) => acc + (o.compliance?.critical || 0), 0)
+  const { opportunities, pipeline, signOut } = useApp()
+  const criticalCount = opportunities.reduce((acc,o) => acc + (o.compliance?.critical||0), 0)
   const pipelineActive = pipeline.filter(p => !['won','lost'].includes(p.stage)).length
 
   return (
@@ -21,12 +21,12 @@ export default function Sidebar({ current, onNavigate }) {
 
         <div className="sidebar-section-label" style={{marginTop:8}}>Workspace</div>
         {[
-          ['dashboard',     '▦', 'Dashboard'],
-          ['upload',        '↑', 'Upload Tender'],
-          ['analysis',      '◎', 'Analysis'],
-          ['generator',     '≡', 'Bid Generator'],
-          ['improvement',   '↗', 'Improvement'],
-        ].map(([key,icon,label])=>(
+          ['dashboard',   '▦', 'Dashboard'],
+          ['upload',      '↑', 'Upload Tender'],
+          ['analysis',    '◎', 'Analysis'],
+          ['generator',   '≡', 'Bid Generator'],
+          ['improvement', '↗', 'Improvement'],
+        ].map(([key,icon,label]) => (
           <button key={key} className={`nav-item ${current===key?'active':''}`} onClick={()=>onNavigate(key)}>
             <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>{label}
           </button>
@@ -34,9 +34,9 @@ export default function Sidebar({ current, onNavigate }) {
 
         <div className="sidebar-section-label" style={{marginTop:8}}>Discover</div>
         {[
-          ['opportunities', '⊕', 'Opportunities'],
-          ['pipeline',      '◧', 'My Pipeline', pipelineActive],
-        ].map(([key,icon,label,badge])=>(
+          ['opportunities','⊕','Opportunities'],
+          ['pipeline',     '◧','My Pipeline', pipelineActive],
+        ].map(([key,icon,label,badge]) => (
           <button key={key} className={`nav-item ${current===key?'active':''}`} onClick={()=>onNavigate(key)}>
             <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>{label}
             {badge > 0 && <span className="nav-badge amber">{badge}</span>}
@@ -50,7 +50,7 @@ export default function Sidebar({ current, onNavigate }) {
       </div>
 
       <div className="sidebar-footer">
-        <button className="nav-item" style={{color:'rgba(255,255,255,.4)'}}>
+        <button className="nav-item" style={{color:'rgba(255,255,255,.4)'}} onClick={signOut}>
           <span style={{width:18,textAlign:'center'}}>→</span> Logout
         </button>
       </div>
