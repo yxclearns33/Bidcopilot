@@ -15,7 +15,7 @@ export function AppProvider({ children }) {
   const [activeOpportunity, setActiveOpportunity] = useState(null)
   const [pipeline, setPipeline] = useState([])
   const [bids, setBids] = useState({})
-  const [uploadedTender, setUploadedTender] = useState(null)
+  const [uploadedTenders, setUploadedTenders] = useState([])
   const [dataLoading, setDataLoading] = useState(false)
 
   useEffect(() => {
@@ -24,19 +24,15 @@ export function AppProvider({ children }) {
       if (session) loadUserData(session.user.id)
       else setAuthLoading(false)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session) loadUserData(session.user.id)
       else {
-        setCompany(null)
-        setOnboardingDone(false)
-        setPipeline([])
-        setBids({})
+        setCompany(null); setOnboardingDone(false)
+        setPipeline([]); setBids({}); setUploadedTenders([])
         setAuthLoading(false)
       }
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
@@ -48,6 +44,7 @@ export function AppProvider({ children }) {
       const { data: refs } = await supabase.from('references_list').select('*').eq('user_id', userId)
       const { data: pipelineData } = await supabase.from('pipeline').select('*').eq('user_id', userId)
       const { data: bidsData } = await supabase.from('bids').select('*').eq('user_id', userId)
+      const { data: tendersData } = await supabase.from('uploaded_tenders').select('*').eq('user_id', userId).order('created_at', { ascending: false })
 
       if (profile) {
         setCompany({
@@ -66,6 +63,26 @@ export function AppProvider({ children }) {
 
       if (pipelineData) setPipeline(pipelineData.map(p => ({ opportunityId: p.opportunity_id, stage: p.stage, savedAt: p.saved_at })))
       if (bidsData) { const m = {}; bidsData.forEach(b => { m[b.opportunity_id] = b.sections }); setBids(m) }
+      if (tendersData) {
+        setUploadedTenders(tendersData.map(t => ({
+          id: t.tender_id,
+          title: t.title,
+          buyer: t.buyer,
+          value: t.value,
+          deadline: t.deadline,
+          location: t.location,
+          industry: t.industry,
+          source: t.source,
+          summary: t.summary,
+          extractedRequirements: t.extracted_requirements || [],
+          evaluationCriteria: t.evaluation_criteria || [],
+          requiredCompliance: t.required_compliance || [],
+          winTips: t.win_tips || [],
+          minInsurance: t.min_insurance || 1,
+          daysLeft: t.days_left || 30,
+          uploadedAt: t.created_at,
+        })))
+      }
     } catch (err) {
       console.error('Error loading user data:', err)
     } finally {
@@ -74,9 +91,59 @@ export function AppProvider({ children }) {
     }
   }
 
-  const opportunities = company
-    ? OPPORTUNITIES_DATA.map(opp => ({ ...opp, fitScore: computeFitScore(opp, company), compliance: runComplianceCheck(opp, company) }))
-    : OPPORTUNITIES_DATA.map(opp => ({ ...opp, fitScore: null, compliance: null }))
+  const allOpportunities = company
+    ? [
+        ...(uploadedTenders.map(t => ({ ...t, fitScore: computeFitScore(t, company), compliance: runComplianceCheck(t, company) }))),
+        ...OPPORTUNITIES_DATA.map(opp => ({ ...opp, fitScore: computeFitScore(opp, company), compliance: runComplianceCheck(opp, company) })),
+      ]
+    : [
+        ...uploadedTenders.map(t => ({ ...t, fitScore: null, compliance: null })),
+        ...OPPORTUNITIES_DATA.map(opp => ({ ...opp, fitScore: null, compliance: null })),
+      ]
+
+  const saveUploadedTender = useCallback(async (tender) => {
+    if (!session?.user) return
+    const userId = session.user.id
+
+    setUploadedTenders(prev => {
+      const exists = prev.find(t => t.id === tender.id)
+      if (exists) return prev.map(t => t.id === tender.id ? tender : t)
+      return [tender, ...prev]
+    })
+
+    try {
+      await supabase.from('uploaded_tenders').upsert({
+        user_id: userId,
+        tender_id: tender.id,
+        title: tender.title,
+        buyer: tender.buyer,
+        value: tender.value,
+        deadline: tender.deadline,
+        location: tender.location,
+        industry: tender.industry,
+        source: tender.source,
+        summary: tender.summary,
+        extracted_requirements: tender.extractedRequirements || [],
+        evaluation_criteria: tender.evaluationCriteria || [],
+        required_compliance: tender.requiredCompliance || [],
+        win_tips: tender.winTips || [],
+        min_insurance: tender.minInsurance || 1,
+        days_left: tender.daysLeft || 30,
+      })
+    } catch (err) {
+      console.error('Error saving tender:', err)
+    }
+  }, [session])
+
+  const deleteUploadedTender = useCallback(async (tenderId) => {
+    if (!session?.user) return
+    setUploadedTenders(prev => prev.filter(t => t.id !== tenderId))
+    try {
+      await supabase.from('uploaded_tenders').delete().eq('user_id', session.user.id).eq('tender_id', tenderId)
+    } catch (err) {
+      console.error('Error deleting tender:', err)
+    }
+  }, [session])
 
   const completeOnboarding = useCallback(async (data) => {
     if (!session?.user) return
@@ -91,9 +158,7 @@ export function AppProvider({ children }) {
         await supabase.from('references_list').delete().eq('user_id', userId)
         await supabase.from('references_list').insert(data.references.map(r => ({ user_id: userId, name: r.name, company: r.company, contact: r.contact })))
       }
-      setCompany(data)
-      setOnboardingDone(true)
-      setScreen('dashboard')
+      setCompany(data); setOnboardingDone(true); setScreen('dashboard')
     } catch (err) { console.error('Error saving onboarding:', err) }
   }, [session])
 
@@ -144,7 +209,17 @@ export function AppProvider({ children }) {
   const signOut = useCallback(async () => { await supabase.auth.signOut(); setScreen('dashboard') }, [])
 
   return (
-    <AppContext.Provider value={{ session, authLoading, dataLoading, onboardingDone, company, screen, setScreen, activeOpportunity, setActiveOpportunity, opportunities, pipeline, bids, uploadedTender, setUploadedTender, completeOnboarding, updateCompany, saveToPipeline, getPipelineStage, updateBid, signOut }}>
+    <AppContext.Provider value={{
+      session, authLoading, dataLoading,
+      onboardingDone, company, screen, setScreen,
+      activeOpportunity, setActiveOpportunity,
+      opportunities: allOpportunities,
+      uploadedTenders, saveUploadedTender, deleteUploadedTender,
+      pipeline, bids,
+      completeOnboarding, updateCompany,
+      saveToPipeline, getPipelineStage, updateBid,
+      signOut,
+    }}>
       {children}
     </AppContext.Provider>
   )

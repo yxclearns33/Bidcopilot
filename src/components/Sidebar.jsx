@@ -1,9 +1,9 @@
 import { useApp } from '../context/AppContext'
 
 export default function Sidebar({ current, onNavigate }) {
-  const { opportunities, pipeline, signOut } = useApp()
-  const criticalCount = opportunities.reduce((acc,o) => acc + (o.compliance?.critical||0), 0)
-  const pipelineActive = pipeline.filter(p => !['won','lost'].includes(p.stage)).length
+  const { opportunities, pipeline, uploadedTenders, signOut } = useApp()
+  const criticalCount = opportunities.reduce((acc,o) => acc+(o.compliance?.critical||0), 0)
+  const pipelineActive = pipeline.filter(p=>!['won','lost'].includes(p.stage)).length
 
   return (
     <div className="sidebar">
@@ -23,12 +23,15 @@ export default function Sidebar({ current, onNavigate }) {
         {[
           ['dashboard',   '▦', 'Dashboard'],
           ['upload',      '↑', 'Upload Tender'],
+          ['mytenders',   '📄', 'My Tenders', uploadedTenders.length],
           ['analysis',    '◎', 'Analysis'],
           ['generator',   '≡', 'Bid Generator'],
           ['improvement', '↗', 'Improvement'],
-        ].map(([key,icon,label]) => (
+        ].map(([key,icon,label,badge]) => (
           <button key={key} className={`nav-item ${current===key?'active':''}`} onClick={()=>onNavigate(key)}>
-            <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>{label}
+            <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>
+            {label}
+            {badge > 0 && <span className="nav-badge green">{badge}</span>}
           </button>
         ))}
 
@@ -38,7 +41,8 @@ export default function Sidebar({ current, onNavigate }) {
           ['pipeline',     '◧','My Pipeline', pipelineActive],
         ].map(([key,icon,label,badge]) => (
           <button key={key} className={`nav-item ${current===key?'active':''}`} onClick={()=>onNavigate(key)}>
-            <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>{label}
+            <span style={{width:18,textAlign:'center',flexShrink:0}}>{icon}</span>
+            {label}
             {badge > 0 && <span className="nav-badge amber">{badge}</span>}
           </button>
         ))}
