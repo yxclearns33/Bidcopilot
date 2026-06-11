@@ -1,6 +1,7 @@
 import { AppProvider, useApp } from './context/AppContext'
 import Sidebar from './components/Sidebar'
 import Topbar from './components/Topbar'
+import MobileNav from './components/MobileNav'
 import Landing from './pages/Landing'
 import Auth from './pages/Auth'
 import Onboarding from './pages/Onboarding'
@@ -36,7 +37,6 @@ function Shell() {
     )
   }
 
-  // Show landing page for logged out users
   if (!session && screen !== 'auth') return <Landing />
   if (!session) return <Auth />
   if (!onboardingDone) return <Onboarding />
@@ -48,6 +48,7 @@ function Shell() {
       <Sidebar current={screen} onNavigate={setScreen} />
       <div className="app-main">
         <Topbar title={TITLES[screen]||screen} onNewTender={()=>setScreen('upload')} />
+        <MobileNav current={screen} onNavigate={setScreen} />
         <div className="app-content">
           {screen==='dashboard'     && <Dashboard       {...props} />}
           {screen==='upload'        && <UploadTender    {...props} />}
