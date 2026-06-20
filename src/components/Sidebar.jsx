@@ -11,7 +11,7 @@ const NAV = [
   { key: 'planner',    icon: '📝', label: 'Bid Planner' },
   { section: 'Discover' },
   { key: 'opportunities', icon: '⊕', label: 'Opportunities' },
-  { key: 'pipeline',      icon: '◧', label: 'Pipeline' },
+  { key: 'pipeline',      icon: '◧', label: 'Bid Tracker' },
   { section: 'Account' },
   { key: 'profile', icon: '◻', label: 'Company Profile' },
 ]

@@ -7,14 +7,15 @@ function ScorePill({ score }) {
 }
 
 export default function Dashboard({ onNavigate }) {
-  const { opportunities, pipeline, company } = useApp()
+  const { uploadedTenders, apiTenders, pipeline, company, setActiveTenderId } = useApp()
 
-  const activeOpps = opportunities.slice(0, 4)
+  const allTenders = [...(uploadedTenders||[]), ...(apiTenders||[]).filter(t => !(uploadedTenders||[]).find(u => u.id === t.id))]
+  const opportunities = allTenders
+
   const topOpps = [...opportunities].sort((a,b)=>(b.fitScore?.overall||0)-(a.fitScore?.overall||0)).slice(0,4)
-  const avgScore = opportunities.reduce((s,o)=>s+(o.fitScore?.overall||0),0) / (opportunities.length||1)
+  const avgScore = opportunities.length > 0 ? opportunities.reduce((s,o)=>s+(o.fitScore?.overall||0),0) / opportunities.length : 0
   const criticalGaps = opportunities.reduce((s,o)=>s+(o.compliance?.critical||0),0)
-  const pipelineActive = pipeline.filter(p=>!['won','lost'].includes(p.stage)).length
-  const wonCount = pipeline.filter(p=>p.stage==='won').length
+  const pipelineActive = (pipeline||[]).filter(p=>!['won','lost'].includes(p.stage)).length
 
   const scoreHistory = [42,48,54,59,63,Math.round(avgScore)]
   const months = ['Jan','Feb','Mar','Apr','May','Jun']
@@ -33,8 +34,8 @@ export default function Dashboard({ onNavigate }) {
       {criticalGaps > 0 && (
         <div onClick={()=>onNavigate('compliance')} style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:10,padding:'12px 16px',marginBottom:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
           <div>
-            <div style={{fontSize:13,fontWeight:600,color:'#DC2626',marginBottom:2}}>⚡ {criticalGaps} critical compliance gap{criticalGaps>1?'s':''} detected across your active tenders</div>
-            <div style={{fontSize:12,color:'#6B6B80'}}>These will cause automatic disqualification before evaluators even read your bid. Fix them now.</div>
+            <div style={{fontSize:13,fontWeight:600,color:'#DC2626',marginBottom:2}}>⚡ {criticalGaps} critical compliance gap{criticalGaps>1?'s':''} detected</div>
+            <div style={{fontSize:12,color:'#6B6B80'}}>These will cause automatic disqualification before evaluators read your bid. Fix them now.</div>
           </div>
           <button className="btn btn-danger btn-sm" style={{flexShrink:0}}>Open Compliance Engine →</button>
         </div>
@@ -43,14 +44,14 @@ export default function Dashboard({ onNavigate }) {
       {/* Stats */}
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-label">Opportunities</div>
-          <div className="stat-value">{opportunities.length}</div>
-          <div className="stat-delta">Available to bid</div>
+          <div className="stat-label">My Tenders</div>
+          <div className="stat-value">{(uploadedTenders||[]).length}</div>
+          <div className="stat-delta">Uploaded or added</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Avg fit score</div>
           <div className="stat-value">{Math.round(avgScore)}%</div>
-          <div className={`stat-delta ${avgScore>=60?'':'down'}`}>{avgScore>=60?'Good match profile':'Improve your profile'}</div>
+          <div className={`stat-delta ${avgScore>=60?'':'down'}`}>{avgScore>=60?'Good match':'Improve profile'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Pipeline active</div>
@@ -60,37 +61,42 @@ export default function Dashboard({ onNavigate }) {
         <div className="stat-card">
           <div className="stat-label">Critical gaps</div>
           <div className="stat-value" style={{color:criticalGaps>0?'#DC2626':'#16A34A'}}>{criticalGaps}</div>
-          <div className={`stat-delta ${criticalGaps>0?'down':''}`}>{criticalGaps>0?'Require immediate action':'All clear'}</div>
+          <div className={`stat-delta ${criticalGaps>0?'down':''}`}>{criticalGaps>0?'Immediate action':'All clear'}</div>
         </div>
       </div>
 
       <div className="grid-2" style={{marginBottom:16}}>
-        {/* Active opportunities */}
+        {/* Top tenders */}
         <div className="card">
           <div className="card-header">
-            <div><div className="card-title">Top matching opportunities</div><div className="card-subtitle">Ranked by your fit score</div></div>
-            <button className="btn btn-sm" onClick={()=>onNavigate('opportunities')}>View all →</button>
+            <div><div className="card-title">Top matching tenders</div><div className="card-subtitle">Ranked by fit score</div></div>
+            <button className="btn btn-sm" onClick={()=>onNavigate('mytenders')}>View all →</button>
           </div>
-          {topOpps.map(o=>(
-            <div className="row-item" key={o.id} style={{cursor:'pointer'}} onClick={()=>onNavigate('opportunities')}>
+          {topOpps.length === 0 ? (
+            <div style={{textAlign:'center',padding:'24px 0',color:'#6B6B80'}}>
+              <div style={{fontSize:13,marginBottom:12}}>No tenders yet</div>
+              <button className="btn btn-primary btn-sm" onClick={()=>onNavigate('upload')}>Upload your first tender</button>
+            </div>
+          ) : topOpps.map(o=>(
+            <div className="row-item" key={o.id} style={{cursor:'pointer'}} onClick={()=>{ setActiveTenderId(o.id); onNavigate('analysis') }}>
               <div className="row-item-left">
-                <div className="row-item-title">{o.title.split('—')[0].trim()}</div>
+                <div className="row-item-title">{(o.title||'').split('—')[0].trim()}</div>
                 <div className="row-item-sub">{o.buyer}</div>
               </div>
               <ScorePill score={o.fitScore?.overall} />
               <div style={{textAlign:'right',minWidth:72}}>
                 <div style={{fontSize:12,fontWeight:600,color:'#4F46E5'}}>{o.value}</div>
-                <div style={{fontSize:11,color:o.daysLeft<=10?'#DC2626':'#9CA3AF'}}>{o.daysLeft}d left</div>
+                <div style={{fontSize:11,color:(o.daysLeft||30)<=10?'#DC2626':'#9CA3AF'}}>{o.daysLeft||'—'}d left</div>
               </div>
             </div>
           ))}
           <button className="btn btn-primary btn-full btn-sm" style={{marginTop:12}} onClick={()=>onNavigate('upload')}>+ Upload a tender document</button>
         </div>
 
-        {/* Score history chart */}
+        {/* Score history */}
         <div className="card">
           <div className="card-header">
-            <div><div className="card-title">Bid readiness over time</div><div className="card-subtitle">Your average fit score trend</div></div>
+            <div><div className="card-title">Bid readiness trend</div><div className="card-subtitle">Average fit score over time</div></div>
             <span className="badge badge-indigo">{Math.round(avgScore)}% now</span>
           </div>
           <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{marginBottom:8}}>
@@ -111,7 +117,7 @@ export default function Dashboard({ onNavigate }) {
               </g>
             ))}
           </svg>
-          <div style={{fontSize:12,color:'#6B6B80'}}>Complete your compliance profile to improve this score.</div>
+          <div style={{fontSize:12,color:'#6B6B80'}}>Complete your profile to improve your scores.</div>
         </div>
       </div>
 
@@ -119,19 +125,21 @@ export default function Dashboard({ onNavigate }) {
         {/* Compliance summary */}
         <div className="card">
           <div className="card-header">
-            <div><div className="card-title">Compliance summary</div><div className="card-subtitle">Across all active tenders</div></div>
+            <div><div className="card-title">Compliance summary</div><div className="card-subtitle">Across uploaded tenders</div></div>
             <button className="btn btn-sm" onClick={()=>onNavigate('compliance')}>Full engine →</button>
           </div>
-          {opportunities.slice(0,4).map(o=>{
+          {(uploadedTenders||[]).length === 0 ? (
+            <div style={{fontSize:13,color:'#6B6B80',padding:'12px 0'}}>No tenders uploaded yet.</div>
+          ) : (uploadedTenders||[]).slice(0,4).map(o=>{
             const v = o.compliance?.verdict
             const icon = v==='at-risk'?'✗':v==='caution'?'⚠':'✓'
             const color = v==='at-risk'?'#DC2626':v==='caution'?'#D97706':'#16A34A'
             const bg = v==='at-risk'?'#FEF2F2':v==='caution'?'#FFFBEB':'#F0FDF4'
             return (
-              <div className="row-item" key={o.id}>
+              <div className="row-item" key={o.id} style={{cursor:'pointer'}} onClick={()=>{ setActiveTenderId(o.id); onNavigate('compliance') }}>
                 <div className="row-item-left">
-                  <div className="row-item-title">{o.title.split('—')[0].trim()}</div>
-                  <div className="row-item-sub">{o.compliance?.critical||0} critical · {o.compliance?.high||0} high · {o.compliance?.passed||0}/{o.compliance?.total||0} passed</div>
+                  <div className="row-item-title">{(o.title||'').split('—')[0].trim()}</div>
+                  <div className="row-item-sub">{o.compliance?.critical||0} critical · {o.compliance?.passed||0}/{o.compliance?.total||0} passed</div>
                 </div>
                 <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,background:bg,color}}>{icon} {v==='at-risk'?'At risk':v==='caution'?'Caution':'Clear'}</span>
               </div>
@@ -142,14 +150,14 @@ export default function Dashboard({ onNavigate }) {
         {/* Company snapshot */}
         <div className="card">
           <div className="card-header">
-            <div><div className="card-title">Company snapshot</div><div className="card-subtitle">{company?.companyName}</div></div>
-            <button className="btn btn-sm" onClick={()=>onNavigate('profile')}>Edit profile →</button>
+            <div><div className="card-title">Company snapshot</div><div className="card-subtitle">{company?.companyName || 'Complete your profile'}</div></div>
+            <button className="btn btn-sm" onClick={()=>onNavigate('profile')}>Edit →</button>
           </div>
           {[
             ['Industry', company?.industry ? company.industry.charAt(0).toUpperCase()+company.industry.slice(1) : '—'],
             ['Location', company?.location || '—'],
             ['Staff', company?.staffCount || '—'],
-            ['Services', (company?.services||[]).length > 0 ? `${(company?.services||[]).length} selected` : 'None'],
+            ['Services', (company?.services||[]).length > 0 ? `${(company?.services||[]).length} selected` : 'None selected'],
             ['Past contracts', `${(company?.experience||[]).length} on file`],
             ['References', `${(company?.references||[]).length} on file`],
           ].map(([label,value])=>(
@@ -158,6 +166,9 @@ export default function Dashboard({ onNavigate }) {
               <span style={{fontSize:13,fontWeight:500,color:'#1A1A2E'}}>{value}</span>
             </div>
           ))}
+          {!company?.companyName && (
+            <button className="btn btn-primary btn-full btn-sm" style={{marginTop:12}} onClick={()=>onNavigate('profile')}>Complete your profile →</button>
+          )}
         </div>
       </div>
     </div>

@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { computeFitScore } from '../engines/fitScoring'
 import { runComplianceCheck } from '../engines/complianceEngine'
 import { fetchContractsFinder } from '../engines/contractsFinder'
-import { OPPORTUNITIES_DATA } from '../data/opportunities'
 
 const AppContext = createContext(null)
 
@@ -349,6 +348,30 @@ export function AppProvider({ children }) {
     } catch (err) { console.error('Error updating bid plan item:', err) }
   }, [session])
 
+  // Remove gap from bid plan
+  const removeFromBidPlan = useCallback(async (tenderId, gapId) => {
+    if (!session?.user) return
+    setBidPlanItems(prev => {
+      const updated = { ...prev }
+      if (updated[tenderId]) {
+        updated[tenderId] = { ...updated[tenderId] }
+        delete updated[tenderId][gapId]
+      }
+      return updated
+    })
+    setResolvedOverrides(prev => ({
+      ...prev,
+      [tenderId]: (prev[tenderId] || []).filter(id => id !== gapId)
+    }))
+    try {
+      await supabase.from('bid_plan_items')
+        .delete()
+        .eq('user_id', session.user.id)
+        .eq('opportunity_id', tenderId)
+        .eq('gap_id', gapId)
+    } catch (err) { console.error('Error removing from bid plan:', err) }
+  }, [session])
+
   // Check if gap is in bid plan
   const isInBidPlan = useCallback((tenderId, gapId) => {
     return !!bidPlanItems[tenderId]?.[gapId]
@@ -414,7 +437,7 @@ export function AppProvider({ children }) {
       pipeline, bids, bidPlanItems, resolvedOverrides,
       completeOnboarding, updateCompany,
       saveUploadedTender, deleteUploadedTender,
-      addToBidPlan, updateBidPlanItem,
+      addToBidPlan, updateBidPlanItem, removeFromBidPlan,
       isInBidPlan, getBidPlanStatus, isResolved,
       saveToPipeline, getPipelineStage, updateBid,
       signOut,

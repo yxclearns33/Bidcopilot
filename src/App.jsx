@@ -24,7 +24,7 @@ const TITLES = {
   planner: 'Bid Planner',
   opportunities: 'Opportunities',
   profile: 'Company Profile',
-  pipeline: 'My Pipeline',
+  pipeline: 'Bid Tracker',
   mytenders: 'My Tenders',
 }
 
