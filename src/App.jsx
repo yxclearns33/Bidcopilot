@@ -9,8 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UploadTender from './pages/UploadTender'
 import Analysis from './pages/Analysis'
 import ComplianceEngine from './pages/ComplianceEngine'
-import BidGenerator from './pages/BidGenerator'
-import BidImprovement from './pages/BidImprovement'
+import BidPlanner from './pages/BidPlanner'
 import Opportunities from './pages/Opportunities'
 import CompanyProfile from './pages/CompanyProfile'
 import Pipeline from './pages/Pipeline'
@@ -18,10 +17,15 @@ import MyTenders from './pages/MyTenders'
 import './App.css'
 
 const TITLES = {
-  dashboard:'Dashboard', upload:'Upload Tender', analysis:'Tender Analysis',
-  compliance:'Bid Risk & Compliance Engine', generator:'Bid Pack Generator',
-  improvement:'Bid Improvement', opportunities:'Opportunities',
-  profile:'Company Profile', pipeline:'My Pipeline', mytenders:'My Tenders',
+  dashboard: 'Dashboard',
+  upload: 'Upload Tender',
+  analysis: 'Tender Analysis',
+  compliance: 'Bid Risk & Compliance Engine',
+  planner: 'Bid Planner',
+  opportunities: 'Opportunities',
+  profile: 'Company Profile',
+  pipeline: 'My Pipeline',
+  mytenders: 'My Tenders',
 }
 
 function Shell() {
@@ -30,7 +34,7 @@ function Shell() {
   if (authLoading || dataLoading) {
     return (
       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F5F7', flexDirection:'column', gap:16 }}>
-        <div style={{ width:36, height:36, border:'3px solid #E8E8EE', borderTopColor:'#4F46E5', borderRadius:'50%', animation:'spin .75s linear infinite' }}/>
+        <div style={{ width:36, height:36, border:'3px solid #E8E8EE', borderTopColor:'#4F46E5', borderRadius:'50%', animation:'spin .75s linear infinite' }} />
         <div style={{ fontSize:13, color:'#6B6B80' }}>Loading BidCopilot...</div>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -47,19 +51,18 @@ function Shell() {
     <div className="app-shell">
       <Sidebar current={screen} onNavigate={setScreen} />
       <div className="app-main">
-        <Topbar title={TITLES[screen]||screen} onNewTender={()=>setScreen('upload')} />
+        <Topbar title={TITLES[screen] || screen} onNewTender={() => setScreen('upload')} />
         <MobileNav current={screen} onNavigate={setScreen} />
         <div className="app-content">
-          {screen==='dashboard'     && <Dashboard       {...props} />}
-          {screen==='upload'        && <UploadTender    {...props} />}
-          {screen==='mytenders'     && <MyTenders        {...props} />}
-          {screen==='analysis'      && <Analysis         {...props} />}
-          {screen==='compliance'    && <ComplianceEngine  {...props} />}
-          {screen==='generator'     && <BidGenerator     {...props} />}
-          {screen==='improvement'   && <BidImprovement   {...props} />}
-          {screen==='opportunities' && <Opportunities     {...props} />}
-          {screen==='profile'       && <CompanyProfile    {...props} />}
-          {screen==='pipeline'      && <Pipeline          {...props} />}
+          {screen === 'dashboard'     && <Dashboard       {...props} />}
+          {screen === 'upload'        && <UploadTender    {...props} />}
+          {screen === 'mytenders'     && <MyTenders        {...props} />}
+          {screen === 'analysis'      && <Analysis         {...props} />}
+          {screen === 'compliance'    && <ComplianceEngine  {...props} />}
+          {screen === 'planner'       && <BidPlanner        {...props} />}
+          {screen === 'opportunities' && <Opportunities      {...props} />}
+          {screen === 'profile'       && <CompanyProfile     {...props} />}
+          {screen === 'pipeline'      && <Pipeline           {...props} />}
         </div>
       </div>
     </div>

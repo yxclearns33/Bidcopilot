@@ -1,296 +1,392 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { SECTORS, TURNOVER_BANDS, STAFF_BANDS, YEARS_TRADING, CONTRACT_RANGES } from '../data/sectors'
 
 function Toggle({ checked, onChange }) {
   return (
     <label className="toggle">
-      <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} />
+      <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} />
       <span className="toggle-slider" />
     </label>
   )
 }
 
-const DOC_VAULT = [
-  { id:'public_liability',  label:'Public liability insurance',  key:'publicLiability' },
-  { id:'employers',         label:'Employers liability insurance',key:'employersLiability' },
-  { id:'health_safety',     label:'Health & Safety policy',      key:'healthSafety' },
-  { id:'risk',              label:'Risk assessments',             key:'riskAssessments' },
-  { id:'coshh',             label:'COSHH compliance records',    key:'coshh' },
-  { id:'iso',               label:'ISO 9001 certificate',        key:'iso9001' },
-]
+function SectionCard({ title, subtitle, complete, children, id }) {
+  const [open, setOpen] = useState(!complete)
+  return (
+    <div className="card" style={{ marginBottom:12, borderColor: complete ? '#BBF7D0' : '#E8E8EE' }} id={id}>
+      <div
+        style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ width:24, height:24, borderRadius:'50%', background: complete ? '#DCFCE7' : '#F3F4F6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 }}>
+            {complete ? '✓' : '○'}
+          </div>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color: complete ? '#15803D' : '#1A1A2E' }}>{title}</div>
+            {subtitle && <div style={{ fontSize:11, color:'#6B6B80', marginTop:1 }}>{subtitle}</div>}
+          </div>
+        </div>
+        <span style={{ fontSize:12, color:'#9CA3AF' }}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && <div style={{ marginTop:16, paddingTop:16, borderTop:'1px solid #F0F0F5' }}>{children}</div>}
+    </div>
+  )
+}
 
 export default function CompanyProfile() {
   const { company, updateCompany } = useApp()
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(company || {})
-  const [tab, setTab] = useState('info')
-  const [newProj, setNewProj] = useState(null)
-  const [newRef, setNewRef] = useState(null)
+  const sector = SECTORS[company?.industry]
 
-  function saveProfile() { updateCompany(draft); setEditing(false) }
+  function update(key, value) { updateCompany({ [key]: value }) }
 
-  function addProject() {
-    if (!newProj) { setNewProj({ clientName:'', sector:company?.industry||'', contractValue:'', duration:'', description:'', outcome:'completed' }); return }
-    if (newProj.clientName) {
-      const updated = [...(company?.experience||[]), newProj]
-      updateCompany({ experience: updated })
-      setDraft(d=>({...d,experience:updated}))
-      setNewProj(null)
-    }
+  function updateCompliance(key, value) {
+    updateCompany({ compliance: { ...(company?.compliance || {}), [key]: value } })
   }
 
-  function removeProject(i) {
-    const updated = (company?.experience||[]).filter((_,j)=>j!==i)
+  function updateAccreditation(key, value) {
+    updateCompany({ accreditations: { ...(company?.accreditations || {}), [key]: value } })
+  }
+
+  function updateDynamic(key, value) {
+    updateCompany({ dynamicCompliance: { ...(company?.dynamicCompliance || {}), [key]: value } })
+  }
+
+  function toggleService(id) {
+    const current = company?.services || []
+    const updated = current.includes(id) ? current.filter(s => s !== id) : [...current, id]
+    updateCompany({ services: updated })
+  }
+
+  function addProject() {
+    const proj = { clientName:'', sector: company?.industry || '', contractValue:'', duration:'', description:'', outcome:'completed' }
+    updateCompany({ experience: [...(company?.experience || []), proj] })
+  }
+
+  function updateProject(i, key, value) {
+    const updated = [...(company?.experience || [])]
+    updated[i] = { ...updated[i], [key]: value }
     updateCompany({ experience: updated })
   }
 
-  function addRef() {
-    if (!newRef) { setNewRef({ name:'', company:'', contact:'' }); return }
-    if (newRef.name) {
-      const updated = [...(company?.references||[]), newRef]
-      updateCompany({ references: updated })
-      setNewRef(null)
-    }
+  function removeProject(i) {
+    updateCompany({ experience: (company?.experience || []).filter((_, j) => j !== i) })
   }
 
-  function removeRef(i) {
-    updateCompany({ references: (company?.references||[]).filter((_,j)=>j!==i) })
+  function addReference() {
+    updateCompany({ references: [...(company?.references || []), { name:'', company:'' }] })
   }
 
-  const tabs = [
-    { key:'info',       label:'Company info' },
-    { key:'services',   label:'Services' },
-    { key:'compliance', label:'Compliance & docs' },
-    { key:'experience', label:'Experience' },
-    { key:'references', label:'References' },
-  ]
+  function updateReference(i, key, value) {
+    const updated = [...(company?.references || [])]
+    updated[i] = { ...updated[i], [key]: value }
+    updateCompany({ references: updated })
+  }
+
+  function removeReference(i) {
+    updateCompany({ references: (company?.references || []).filter((_, j) => j !== i) })
+  }
+
+  // ─── Progress calculation ─────────────────────────────────────────────────
+  const checks = {
+    business: !!(company?.companyName && company?.location && company?.staffCount && company?.yearsTrading && company?.turnoverBand),
+    services: (company?.services || []).length > 0,
+    insurance: !!(company?.compliance?.publicLiability && company?.compliance?.employersLiability),
+    accreditations: Object.values(company?.accreditations || {}).some(Boolean),
+    policies: ['healthSafety','coshh','riskAssessments'].every(p => company?.compliance?.[p]),
+    experience: (company?.experience || []).length >= 1,
+    references: (company?.references || []).length >= 1,
+  }
+  const completed = Object.values(checks).filter(Boolean).length
+  const total = Object.keys(checks).length
+  const pct = Math.round((completed / total) * 100)
+
+  const selectedServices = company?.services || []
+  const dynamicSections = selectedServices
+    .map(id => sector?.dynamicQuestions?.[id])
+    .filter(Boolean)
 
   return (
     <div>
-      {/* Tab nav */}
-      <div style={{display:'flex',gap:0,marginBottom:20,background:'#fff',border:'1px solid #E8E8EE',borderRadius:10,overflow:'hidden',width:'fit-content'}}>
-        {tabs.map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)}
-            style={{padding:'9px 18px',fontSize:13,fontWeight:500,border:'none',background:tab===t.key?'#4F46E5':'transparent',color:tab===t.key?'#fff':'#6B6B80',cursor:'pointer',transition:'all .15s',fontFamily:'inherit'}}>
-            {t.label}
-          </button>
-        ))}
+      {/* Progress bar */}
+      <div className="card" style={{ marginBottom:20, background:'linear-gradient(135deg,#1E1B4B,#312E81)', border:'none' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:600, color:'#fff', marginBottom:2 }}>Profile completion</div>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,.6)' }}>
+              {pct < 50 ? 'Complete your profile to unlock compliance scores' :
+               pct < 80 ? 'Good progress — keep going for accurate match scores' :
+               pct < 100 ? 'Almost there — finish your profile for full accuracy' :
+               'Profile complete — your scores are fully accurate'}
+            </div>
+          </div>
+          <div style={{ fontSize:36, fontWeight:800, color:'#fff', letterSpacing:'-1px' }}>{pct}%</div>
+        </div>
+        <div style={{ height:8, background:'rgba(255,255,255,.2)', borderRadius:4, overflow:'hidden' }}>
+          <div style={{ width:`${pct}%`, height:'100%', background: pct === 100 ? '#86EFAC' : '#818CF8', borderRadius:4, transition:'width .5s' }} />
+        </div>
+        <div style={{ display:'flex', gap:16, marginTop:12, flexWrap:'wrap' }}>
+          {Object.entries(checks).map(([key, done]) => (
+            <span key={key} style={{ fontSize:11, color: done ? '#86EFAC' : 'rgba(255,255,255,.4)', display:'flex', alignItems:'center', gap:4 }}>
+              {done ? '✓' : '○'} {key.charAt(0).toUpperCase() + key.slice(1)}
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Company info */}
-      {tab==='info'&&(
-        <div className="grid-2" style={{alignItems:'start'}}>
-          <div className="card">
-            <div className="card-header">
-              <div><div className="card-title">Company information</div><div className="card-subtitle">Used across all bid generation</div></div>
-              {editing
-                ?<div style={{display:'flex',gap:6}}><button className="btn btn-primary btn-sm" onClick={saveProfile}>Save</button><button className="btn btn-sm" onClick={()=>{setEditing(false);setDraft(company||{})}}>Cancel</button></div>
-                :<button className="btn btn-sm" onClick={()=>setEditing(true)}>✎ Edit</button>
-              }
-            </div>
-            {[
-              ['Company name', 'companyName', 'text', 'e.g. Bright Clean Ltd'],
-              ['Location', 'location', 'text', 'e.g. Manchester'],
-              ['Operating region', 'operatingRegion', 'text', 'e.g. North West'],
-            ].map(([label,key,type,ph])=>(
-              <div className="row-item" key={key}>
-                <span style={{fontSize:12,color:'#6B6B80',minWidth:130}}>{label}</span>
-                {editing
-                  ?<input type={type} value={draft[key]||''} onChange={e=>setDraft(d=>({...d,[key]:e.target.value}))} placeholder={ph} style={{flex:1,fontSize:13}}/>
-                  :<span style={{fontSize:13,fontWeight:500,color:'#1A1A2E'}}>{company?.[key]||'—'}</span>
-                }
-              </div>
-            ))}
-            <div className="row-item">
-              <span style={{fontSize:12,color:'#6B6B80',minWidth:130}}>Staff count</span>
-              {editing
-                ?<select value={draft.staffCount||''} onChange={e=>setDraft(d=>({...d,staffCount:e.target.value}))} style={{flex:1,fontSize:13}}>
-                  {['1-5','6-10','11-25','26-50','51-100','100+'].map(s=><option key={s}>{s}</option>)}
-                </select>
-                :<span style={{fontSize:13,fontWeight:500}}>{company?.staffCount||'—'}</span>
-              }
-            </div>
-            <div className="row-item">
-              <span style={{fontSize:12,color:'#6B6B80',minWidth:130}}>Industry</span>
-              <span style={{fontSize:13,fontWeight:500,color:'#4F46E5',textTransform:'capitalize'}}>{company?.industry||'—'}</span>
-            </div>
-            <div className="row-item">
-              <span style={{fontSize:12,color:'#6B6B80',minWidth:130}}>Contract target</span>
-              <span style={{fontSize:13,fontWeight:500}}>{company?.contractTargetRange||'—'}</span>
-            </div>
+      {/* Business info */}
+      <SectionCard title="Business information" subtitle="Company name, location, size and trading history" complete={checks.business} id="section-business">
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Company name</label>
+            <input type="text" placeholder="e.g. Bright Clean Ltd" value={company?.companyName || ''} onChange={e => update('companyName', e.target.value)} />
           </div>
-
-          {/* Profile strength */}
-          <div className="card">
-            <div className="card-header"><div className="card-title">Profile strength</div></div>
-            {[
-              ['Company info',  !!(company?.companyName&&company?.location)],
-              ['Services',      (company?.services||[]).length>0],
-              ['Compliance',    !!(company?.compliance?.publicLiability||company?.compliance?.healthSafety)],
-              ['Past contracts',(company?.experience||[]).length>0],
-              ['References',    (company?.references||[]).length>0],
-            ].map(([label,done])=>(
-              <div className="row-item" key={label}>
-                <span style={{fontSize:13,color:done?'#1A1A2E':'#9CA3AF'}}>{label}</span>
-                <span className={`badge ${done?'badge-green':'badge-gray'}`}>{done?'✓ Complete':'Incomplete'}</span>
-              </div>
-            ))}
-            <div style={{marginTop:14,padding:12,background:'#F9FAFB',borderRadius:8,fontSize:12,color:'#6B6B80',lineHeight:1.5}}>
-              A complete profile generates better bid content and more accurate compliance checks.
-            </div>
+          <div className="form-group">
+            <label className="form-label">Location (town / city)</label>
+            <input type="text" placeholder="e.g. Manchester" value={company?.location || ''} onChange={e => update('location', e.target.value)} />
           </div>
         </div>
-      )}
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Number of employees</label>
+            <select value={company?.staffCount || ''} onChange={e => update('staffCount', e.target.value)}>
+              <option value="">Select</option>
+              {STAFF_BANDS.map(b => <option key={b}>{b}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Years trading</label>
+            <select value={company?.yearsTrading || ''} onChange={e => update('yearsTrading', e.target.value)}>
+              <option value="">Select</option>
+              {YEARS_TRADING.map(y => <option key={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Annual turnover band</label>
+            <select value={company?.turnoverBand || ''} onChange={e => update('turnoverBand', e.target.value)}>
+              <option value="">Select</option>
+              {TURNOVER_BANDS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
+            <div className="form-hint">Used to check financial standing against tender values</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Largest contract completed</label>
+            <select value={company?.largestContract || ''} onChange={e => update('largestContract', e.target.value)}>
+              <option value="">Select</option>
+              {CONTRACT_RANGES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="check-row">
+          <div>
+            <div className="check-label">Public sector experience</div>
+            <div className="check-sub">Have you previously worked on public sector contracts?</div>
+          </div>
+          <Toggle checked={company?.publicSectorExp} onChange={v => update('publicSectorExp', v)} />
+        </div>
+        <div className="form-group" style={{ marginTop:12 }}>
+          <label className="form-label">Operating region</label>
+          <input type="text" placeholder="e.g. Greater Manchester, North West" value={company?.operatingRegion || ''} onChange={e => update('operatingRegion', e.target.value)} />
+        </div>
+      </SectionCard>
 
       {/* Services */}
-      {tab==='services'&&(
-        <div className="card" style={{maxWidth:560}}>
-          <div className="card-header"><div className="card-title">Services offered</div><div className="card-subtitle">Used for opportunity matching</div></div>
+      <SectionCard title="Services offered" subtitle="Select all that apply — unlocks relevant compliance questions" complete={checks.services} id="section-services">
+        {sector ? (
           <div className="pill-grid">
-            {['Office cleaning','Industrial cleaning','School cleaning','Healthcare cleaning','Window cleaning','Carpet cleaning','Waste management','Grounds maintenance','Manned guarding','CCTV monitoring','Access control','Event security'].map(s=>{
-              const selected = (company?.services||[]).includes(s)
-              return (
-                <button key={s} className={`pill ${selected?'selected':''}`}
-                  onClick={()=>{
-                    const updated = selected?(company?.services||[]).filter(x=>x!==s):[...(company?.services||[]),s]
-                    updateCompany({services:updated})
-                  }}>{s}</button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Compliance & docs */}
-      {tab==='compliance'&&(
-        <div className="grid-2" style={{alignItems:'start'}}>
-          <div className="card">
-            <div className="card-header"><div className="card-title">Compliance toggles</div><div className="card-subtitle">Update when you obtain new documents</div></div>
-            {DOC_VAULT.map(d=>(
-              <div className="check-row" key={d.id}>
-                <div>
-                  <div className="check-label">{d.label}</div>
-                  <div className="check-sub">{company?.compliance?.[d.key]?'✓ On file':'Not declared'}</div>
-                </div>
-                <Toggle checked={!!(company?.compliance?.[d.key])}
-                  onChange={v=>updateCompany({compliance:{...(company?.compliance||{}),[d.key]:v}})} />
-              </div>
+            {sector.services.map(s => (
+              <button
+                key={s.id}
+                className={`pill ${selectedServices.includes(s.id) ? 'selected' : ''}`}
+                onClick={() => toggleService(s.id)}
+              >
+                {s.label}
+              </button>
             ))}
-            {company?.compliance?.publicLiability&&(
-              <div style={{marginTop:12}}>
-                <label className="form-label">Public liability coverage (£M)</label>
-                <input type="number" value={company?.compliance?.publicLiabilityValue||''} placeholder="e.g. 5"
-                  onChange={e=>updateCompany({compliance:{...(company?.compliance||{}),publicLiabilityValue:e.target.value}})} style={{width:140}} />
-              </div>
-            )}
           </div>
-          <div className="card">
-            <div className="card-header"><div className="card-title">Document vault</div><div className="card-subtitle">Upload your actual certificates</div></div>
-            {DOC_VAULT.map(d=>{
-              const on = company?.compliance?.[d.key]
-              return (
-                <div className="doc-row" key={d.id}>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:on?'#22C55E':'#E0E0EA',flexShrink:0}}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:500,color:'#1A1A2E'}}>{d.label}</div>
-                    <div style={{fontSize:11,color:'#6B6B80'}}>{on?'Declared — upload certificate to verify':'Not on file'}</div>
-                  </div>
-                  <div style={{display:'flex',gap:6}}>
-                    {on&&<button className="btn btn-sm" style={{fontSize:11}}>↑ Upload</button>}
-                    <span className={`badge ${on?'badge-green':'badge-red'}`}>{on?'On file':'Missing'}</span>
-                  </div>
-                </div>
-              )
-            })}
-            <div style={{marginTop:12,padding:10,background:'#FEF3C7',borderRadius:8,fontSize:12,color:'#92400E',lineHeight:1.5}}>
-              ⚠ Uploading actual certificates marks them as <strong>Verified</strong> and increases your compliance score weighting.
+        ) : (
+          <div style={{ fontSize:13, color:'#6B6B80' }}>Industry not set — go to dashboard to complete onboarding.</div>
+        )}
+      </SectionCard>
+
+      {/* Insurance */}
+      <SectionCard title="Insurance" subtitle="Gateway requirement for all public sector tenders" complete={checks.insurance} id="section-insurance">
+        <div className="check-row">
+          <div>
+            <div className="check-label">Public liability insurance</div>
+            <div className="check-sub">Minimum £5M for most public sector tenders</div>
+          </div>
+          <Toggle checked={company?.compliance?.publicLiability} onChange={v => updateCompliance('publicLiability', v)} />
+        </div>
+        {company?.compliance?.publicLiability && (
+          <div style={{ margin:'8px 0 12px', paddingLeft:0 }}>
+            <label className="form-label">Coverage level</label>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:4 }}>
+              {(sector?.insuranceLevels || ['£1M','£2M','£5M','£10M+']).map(level => (
+                <button
+                  key={level}
+                  className={`pill ${company?.compliance?.publicLiabilityValue === level ? 'selected' : ''}`}
+                  onClick={() => updateCompliance('publicLiabilityValue', level)}
+                >
+                  {level}
+                </button>
+              ))}
             </div>
           </div>
+        )}
+        <div className="check-row">
+          <div>
+            <div className="check-label">Employers liability insurance</div>
+            <div className="check-sub">Legally required if you have any employees</div>
+          </div>
+          <Toggle checked={company?.compliance?.employersLiability} onChange={v => updateCompliance('employersLiability', v)} />
         </div>
-      )}
+        <div className="check-row">
+          <div>
+            <div className="check-label">Professional indemnity insurance</div>
+            <div className="check-sub">Required for some contracts — design & build, M&E, specialist</div>
+          </div>
+          <Toggle checked={company?.compliance?.professionalIndemnity} onChange={v => updateCompliance('professionalIndemnity', v)} />
+        </div>
+      </SectionCard>
+
+      {/* Accreditations */}
+      <SectionCard title="Accreditations" subtitle="CHAS, SafeContractor, ISO and sector-specific schemes" complete={checks.accreditations} id="section-accreditations">
+        {(sector?.accreditations || []).map(acc => (
+          <div className="check-row" key={acc.id}>
+            <div>
+              <div className="check-label">{acc.label}</div>
+              <div className="check-sub">{acc.sub}</div>
+            </div>
+            <Toggle checked={company?.accreditations?.[acc.id]} onChange={v => updateAccreditation(acc.id, v)} />
+          </div>
+        ))}
+      </SectionCard>
+
+      {/* Policies */}
+      <SectionCard title="Policies & compliance documents" subtitle="Written policies required for public sector bids" complete={checks.policies} id="section-policies">
+        {(sector?.policies || []).map(policy => (
+          <div className="check-row" key={policy.id}>
+            <div>
+              <div className="check-label" style={{ display:'flex', alignItems:'center', gap:6 }}>
+                {policy.label}
+                {policy.severity === 'critical' && <span style={{ fontSize:10, background:'#FEE2E2', color:'#DC2626', padding:'1px 6px', borderRadius:4, fontWeight:600 }}>CRITICAL</span>}
+                {policy.severity === 'high' && <span style={{ fontSize:10, background:'#FEF3C7', color:'#D97706', padding:'1px 6px', borderRadius:4, fontWeight:600 }}>HIGH</span>}
+              </div>
+              <div className="check-sub">{policy.sub}</div>
+            </div>
+            <Toggle checked={company?.compliance?.[policy.id]} onChange={v => updateCompliance(policy.id, v)} />
+          </div>
+        ))}
+      </SectionCard>
+
+      {/* Dynamic service-specific questions */}
+      {dynamicSections.length > 0 && dynamicSections.map(dq => (
+        <SectionCard
+          key={dq.label}
+          title={`${dq.label} — specific requirements`}
+          subtitle="Required for this service type"
+          complete={dq.questions.every(q => company?.dynamicCompliance?.[q.id])}
+          id={`section-dynamic-${dq.label}`}
+        >
+          {dq.questions.map(q => (
+            <div className="check-row" key={q.id}>
+              <div>
+                <div className="check-label" style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  {q.label}
+                  {q.severity === 'critical' && <span style={{ fontSize:10, background:'#FEE2E2', color:'#DC2626', padding:'1px 6px', borderRadius:4, fontWeight:600 }}>CRITICAL</span>}
+                </div>
+              </div>
+              <Toggle checked={company?.dynamicCompliance?.[q.id]} onChange={v => updateDynamic(q.id, v)} />
+            </div>
+          ))}
+        </SectionCard>
+      ))}
 
       {/* Experience */}
-      {tab==='experience'&&(
-        <div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:600,color:'#1A1A2E'}}>Past contracts</div>
-              <div style={{fontSize:12,color:'#6B6B80',marginTop:2}}>{(company?.experience||[]).length} contracts on file</div>
+      <SectionCard title="Past contracts" subtitle="Used in bid generation and experience scoring" complete={checks.experience} id="section-experience">
+        {(company?.experience || []).map((proj, i) => (
+          <div className="project-card" key={i}>
+            <div className="project-card-header">
+              <div>
+                <div style={{ fontSize:13, fontWeight:600 }}>{proj.clientName || 'Unnamed contract'}</div>
+                <div style={{ fontSize:11, color:'#6B6B80' }}>{proj.contractValue} · {proj.duration} · {proj.outcome}</div>
+              </div>
+              <button className="btn btn-sm" style={{ color:'#DC2626', borderColor:'#FECACA', fontSize:11 }} onClick={() => removeProject(i)}>Remove</button>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Client / organisation</label>
+                <input type="text" placeholder="e.g. Manchester City Council" value={proj.clientName || ''} onChange={e => updateProject(i, 'clientName', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Contract value</label>
+                <input type="text" placeholder="e.g. £25,000" value={proj.contractValue || ''} onChange={e => updateProject(i, 'contractValue', e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Duration</label>
+                <input type="text" placeholder="e.g. 2 years" value={proj.duration || ''} onChange={e => updateProject(i, 'duration', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Outcome</label>
+                <select value={proj.outcome || 'completed'} onChange={e => updateProject(i, 'outcome', e.target.value)}>
+                  <option value="completed">Completed</option>
+                  <option value="ongoing">Ongoing</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Description</label>
+              <textarea placeholder="Brief description of the work..." value={proj.description || ''} onChange={e => updateProject(i, 'description', e.target.value)} />
             </div>
           </div>
-          {(company?.experience||[]).map((p,i)=>(
-            <div className="project-card" key={i}>
-              <div className="project-card-header">
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:'#1A1A2E'}}>{p.clientName}</div>
-                  <div style={{fontSize:11,color:'#6B6B80',marginTop:2}}>{p.sector} · {p.contractValue} · {p.duration} · <span style={{color:p.outcome==='completed'?'#16A34A':'#4F46E5'}}>{p.outcome}</span></div>
-                </div>
-                <button className="btn btn-sm" style={{color:'#DC2626',borderColor:'#FECACA',fontSize:11}} onClick={()=>removeProject(i)}>Remove</button>
-              </div>
-              {p.description&&<div style={{fontSize:12,color:'#4B5563',lineHeight:1.5}}>{p.description}</div>}
-            </div>
-          ))}
-          {newProj?(
-            <div className="project-card">
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Client name</label>
-                  <input type="text" value={newProj.clientName} onChange={e=>setNewProj(p=>({...p,clientName:e.target.value}))} placeholder="e.g. Manchester City Council"/></div>
-                <div className="form-group"><label className="form-label">Contract value</label>
-                  <input type="text" value={newProj.contractValue} onChange={e=>setNewProj(p=>({...p,contractValue:e.target.value}))} placeholder="e.g. £25,000"/></div>
-              </div>
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Duration</label>
-                  <input type="text" value={newProj.duration} onChange={e=>setNewProj(p=>({...p,duration:e.target.value}))} placeholder="e.g. 2 years"/></div>
-                <div className="form-group"><label className="form-label">Outcome</label>
-                  <select value={newProj.outcome} onChange={e=>setNewProj(p=>({...p,outcome:e.target.value}))}>
-                    <option value="completed">Completed</option><option value="ongoing">Ongoing</option>
-                  </select></div>
-              </div>
-              <div className="form-group"><label className="form-label">Description</label>
-                <textarea value={newProj.description} onChange={e=>setNewProj(p=>({...p,description:e.target.value}))} placeholder="Briefly describe the scope..."/></div>
-              <div style={{display:'flex',gap:8}}>
-                <button className="btn btn-primary btn-sm" onClick={addProject}>Save contract</button>
-                <button className="btn btn-sm" onClick={()=>setNewProj(null)}>Cancel</button>
-              </div>
-            </div>
-          ):<button className="add-btn" onClick={addProject}>+ Add a past contract</button>}
-        </div>
-      )}
+        ))}
+        <button className="add-btn" onClick={addProject}>+ Add a past contract</button>
+      </SectionCard>
 
       {/* References */}
-      {tab==='references'&&(
-        <div>
-          <div style={{fontSize:14,fontWeight:600,color:'#1A1A2E',marginBottom:16}}>{(company?.references||[]).length} references on file</div>
-          {(company?.references||[]).map((r,i)=>(
-            <div className="project-card" key={i}>
-              <div className="project-card-header">
-                <div>
-                  <div style={{fontSize:13,fontWeight:600}}>{r.name}</div>
-                  <div style={{fontSize:11,color:'#6B6B80'}}>{r.company}</div>
-                  {r.contact&&<div style={{fontSize:11,color:'#4B5563',marginTop:2}}>{r.contact}</div>}
-                </div>
-                <button className="btn btn-sm" style={{color:'#DC2626',borderColor:'#FECACA',fontSize:11}} onClick={()=>removeRef(i)}>Remove</button>
+      <SectionCard title="Client references" subtitle="Organisation names only — no personal contact details stored" complete={checks.references} id="section-references">
+        {(company?.references || []).map((ref, i) => (
+          <div className="project-card" key={i}>
+            <div className="project-card-header">
+              <div style={{ fontSize:13, fontWeight:600 }}>{ref.name || 'Unnamed reference'}</div>
+              <button className="btn btn-sm" style={{ color:'#DC2626', borderColor:'#FECACA', fontSize:11 }} onClick={() => removeReference(i)}>Remove</button>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Reference description</label>
+                <input type="text" placeholder="e.g. Office cleaning contract" value={ref.name || ''} onChange={e => updateReference(i, 'name', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Client organisation</label>
+                <input type="text" placeholder="e.g. Manchester City Council" value={ref.company || ''} onChange={e => updateReference(i, 'company', e.target.value)} />
               </div>
             </div>
-          ))}
-          {newRef?(
-            <div className="project-card">
-              <div className="form-row">
-                <div className="form-group"><label className="form-label">Name</label>
-                  <input type="text" value={newRef.name} onChange={e=>setNewRef(r=>({...r,name:e.target.value}))} placeholder="Contact name"/></div>
-                <div className="form-group"><label className="form-label">Company</label>
-                  <input type="text" value={newRef.company} onChange={e=>setNewRef(r=>({...r,company:e.target.value}))} placeholder="Organisation"/></div>
-              </div>
-              <div className="form-group"><label className="form-label">Contact details (optional)</label>
-                <input type="text" value={newRef.contact} onChange={e=>setNewRef(r=>({...r,contact:e.target.value}))} placeholder="Email or phone"/></div>
-              <div style={{display:'flex',gap:8}}>
-                <button className="btn btn-primary btn-sm" onClick={addRef}>Save reference</button>
-                <button className="btn btn-sm" onClick={()=>setNewRef(null)}>Cancel</button>
-              </div>
-            </div>
-          ):<button className="add-btn" onClick={addRef}>+ Add a reference</button>}
+          </div>
+        ))}
+        <button className="add-btn" onClick={addReference}>+ Add a reference</button>
+        <div style={{ marginTop:12, fontSize:12, color:'#9CA3AF' }}>
+          We only store organisation names — no personal contact details.
         </div>
-      )}
+      </SectionCard>
+
+      {/* Feedback */}
+      <div className="card" style={{ marginBottom:12, background:'#F9F9FB' }}>
+        <div style={{ fontSize:13, fontWeight:600, color:'#1A1A2E', marginBottom:6 }}>Something missing from your sector?</div>
+        <div style={{ fontSize:12, color:'#6B6B80', marginBottom:10 }}>BidCopilot is in testing. If a compliance requirement for your sector isn't listed above, let us know and we'll add it.</div>
+        <textarea
+          placeholder="e.g. Street works licence isn't listed for street cleansing..."
+          value={company?.feedbackNote || ''}
+          onChange={e => update('feedbackNote', e.target.value)}
+          style={{ minHeight:60 }}
+        />
+        <button className="btn btn-sm" style={{ marginTop:8 }} onClick={() => {}}>Send feedback</button>
+      </div>
     </div>
   )
 }
