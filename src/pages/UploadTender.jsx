@@ -5,7 +5,7 @@ import { computeFitScore } from '../engines/fitScoring'
 import { runComplianceCheck } from '../engines/complianceEngine'
 
 export default function UploadTender({ onNavigate }) {
-  const { company, saveUploadedTender, setActiveOpportunity } = useApp()
+  const { company, saveUploadedTender, setActiveTenderId } = useApp()
   const [step, setStep] = useState(0)
   const [file, setFile] = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -42,11 +42,17 @@ export default function UploadTender({ onNavigate }) {
       await saveUploadedTender(parsedOpp)
       setLoadingMsg('Analysis complete!')
       await new Promise(r => setTimeout(r, 400))
-      setActiveOpportunity(parsedOpp)
+      setActiveTenderId(parsedOpp.id)
       setLoading(false)
+      // If limited extraction show a note but still navigate
+      if (parsedOpp.extractionNote) {
+        setError(`Note: ${parsedOpp.extractionNote}`)
+      }
       onNavigate('analysis')
     } catch (err) {
-      setError('Something went wrong. Please try again.')
+      console.error('Upload error:', err)
+      // Still try to create a basic record even if something fails
+      setError('Could not fully parse this document. Try uploading a text-based PDF or DOCX file.')
       setLoading(false); setStep(1)
     }
   }

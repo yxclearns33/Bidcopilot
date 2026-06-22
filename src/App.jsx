@@ -41,8 +41,14 @@ function Shell() {
     )
   }
 
-  if (!session && screen !== 'auth') return <Landing />
-  if (!session) return <Auth />
+  if (!session) return screen === 'auth' ? <Auth /> : <Landing />
+
+  // Logged in but screen is still on auth or landing — redirect to dashboard
+  if (screen === 'auth' || screen === 'landing' || screen === '') {
+    setScreen('dashboard')
+    return null
+  }
+
   if (!onboardingDone) return <Onboarding />
 
   const props = { onNavigate: setScreen }

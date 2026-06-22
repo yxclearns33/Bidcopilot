@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useApp } from '../context/AppContext'
 
 export default function Auth({ onBack }) {
+  const { setScreen } = useApp()
   const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -46,11 +48,14 @@ export default function Auth({ onBack }) {
         }
       } else {
         setMessage('Account created! Taking you in...')
+        setTimeout(() => setScreen('dashboard'), 800)
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError('Username or password incorrect. Please try again.')
+      } else {
+        setScreen('dashboard')
       }
     }
     setLoading(false)

@@ -28,15 +28,35 @@ export default function BidPlanner({ onNavigate }) {
   const [howOpen, setHowOpen] = useState({})
   const [showDone, setShowDone] = useState(false)
   const [taskOrder, setTaskOrder] = useState({})
-  const [planGenerated, setPlanGenerated] = useState({})
 
-  // Build tasks — default tasks + compliance gap tasks from bid plan
+  // Persist planGenerated in localStorage so it survives navigation
+  const planKey = `bidplan_generated_${tender?.id}`
+  const isGenerated = tender ? localStorage.getItem(planKey) === 'true' : false
+
+  function generatePlan() {
+    if (!tender) return
+    localStorage.setItem(planKey, 'true')
+    // Force re-render
+    setExpanded(e => ({ ...e }))
+  }
+
+  function deleteWholePlan() {
+    if (!tender) return
+    if (!window.confirm('Delete the entire bid plan for this tender? This cannot be undone.')) return
+    // Remove all plan items for this tender
+    const items = bidPlanItems[tender.id] || {}
+    Object.keys(items).forEach(gapId => removeFromBidPlan(tender.id, gapId))
+    // Remove generated flag
+    localStorage.removeItem(planKey)
+    setExpanded({})
+    setHowOpen({})
+  }
   const allTasks = useMemo(() => {
     if (!tender) return []
 
     const planItems = bidPlanItems[tender.id] || {}
     const gaps = tender.compliance?.results || []
-    const isGenerated = planGenerated[tender.id]
+    const generated = tender ? localStorage.getItem(`bidplan_generated_${tender.id}`) === 'true' : false
 
     // Compliance gap tasks added from Compliance Engine
     const gapTasks = Object.entries(planItems).map(([gapId, item]) => {
@@ -55,7 +75,7 @@ export default function BidPlanner({ onNavigate }) {
     }).filter(Boolean)
 
     // Default tasks — shown when plan is generated or no compliance tasks yet
-    const defaultTasks = isGenerated || gapTasks.length === 0
+    const defaultTasks = generated || gapTasks.length === 0
       ? getDefaultTasks(tender, company).map((t, i) => ({
           ...t,
           status: planItems[t.id]?.status || 'none',
@@ -73,12 +93,11 @@ export default function BidPlanner({ onNavigate }) {
       if (aOrder !== bOrder) return aOrder - bOrder
       return (sevOrder[a.severity] ?? 2) - (sevOrder[b.severity] ?? 2)
     })
-  }, [tender, bidPlanItems, taskOrder, planGenerated, company])
+  }, [tender, bidPlanItems, taskOrder, company])
 
   const activeTasks = allTasks.filter(t => t.status !== 'done')
   const doneTasks = allTasks.filter(t => t.status === 'done')
   const daysLeft = daysUntil(tender?.deadline)
-  const isGenerated = planGenerated[tender?.id]
 
   function setStatus(gapId, status) {
     if (!tender) return
@@ -88,7 +107,6 @@ export default function BidPlanner({ onNavigate }) {
   function handleRemove(taskId, isDefault) {
     if (!tender) return
     if (isDefault) {
-      // For default tasks, just mark as removed via status hack
       updateBidPlanItem(tender.id, taskId, 'removed')
     } else {
       removeFromBidPlan(tender.id, taskId)
@@ -107,10 +125,6 @@ export default function BidPlanner({ onNavigate }) {
     newOrder[aKey] = newOrder[bKey]
     newOrder[bKey] = tmp
     setTaskOrder(prev => ({ ...prev, ...newOrder }))
-  }
-
-  function generatePlan() {
-    setPlanGenerated(prev => ({ ...prev, [tender.id]: true }))
   }
 
   // Group active tasks by week/category
@@ -155,6 +169,15 @@ export default function BidPlanner({ onNavigate }) {
             {allTenders.map(t => <option key={t.id} value={t.id}>{t.title?.substring(0,60)}</option>)}
           </select>
           <button className="btn btn-sm"><i className="ti ti-download" aria-hidden="true"></i> Download</button>
+          {isGenerated && (
+            <button
+              className="btn btn-sm"
+              style={{ color:'#DC2626', borderColor:'#FECACA' }}
+              onClick={deleteWholePlan}
+            >
+              🗑 Delete plan
+            </button>
+          )}
         </div>
 
         <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
